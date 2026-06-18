@@ -908,6 +908,21 @@ app.post('/api/repack', async (req, res) => {
     logToConsole('Copying compiled server binaries and configs...', 'system');
     fs.cpSync(acBinPath, repackServerPath, { recursive: true });
 
+    // Copy required DLL libraries from vcpkg on Windows
+    if (process.platform === 'win32') {
+      logToConsole('Copying required DLL libraries from vcpkg...', 'system');
+      const vcpkgBinPath = path.join(__dirname, 'deps', 'vcpkg', 'installed', 'x64-windows', 'bin');
+      if (fs.existsSync(vcpkgBinPath)) {
+        const files = fs.readdirSync(vcpkgBinPath);
+        for (const file of files) {
+          if (file.endsWith('.dll')) {
+            fs.copyFileSync(path.join(vcpkgBinPath, file), path.join(repackServerPath, file));
+          }
+        }
+        logToConsole('DLL files copied successfully.', 'success');
+      }
+    }
+
     // 4. Copy SQL updates folder
     logToConsole('Copying database SQL files for automatic setup...', 'system');
     const acSqlPath = path.join(acPath, 'sql');
@@ -1029,7 +1044,6 @@ default-authentication-plugin=mysql_native_password
 
     // 9. Write start scripts
     logToConsole('Writing startup scripts for repack...', 'system');
-
     const startBatContent = `@echo off
 title AzerothCore Portable Repack
 cd /d "%~dp0"
@@ -1039,43 +1053,44 @@ echo   AzerothCore Portable Repack Startup Script (MySQL 8)
 echo ===================================================
 echo.
 
-if not exist database\\data (
-    echo [1/3] Initializing portable MySQL database...
-    mkdir database\\data
-    cd database
-    call bin\\mysqld.exe --initialize-insecure --datadir=data --console
-    cd ..
-    
-    echo Starting MySQL temporarily for initialization...
-    start "MySQL Temp" /min database\\bin\\mysqld.exe --defaults-file=database\\my.ini --datadir=database\\data --port=3310 --bind-address=127.0.0.1
-    
-    echo Waiting for database to initialize...
-    :ping_init
-    database\\bin\\mysqladmin.exe --port=3310 -u root ping >nul 2>&1
-    if %errorlevel% neq 0 (
-        timeout /t 1 /nobreak >nul
-        goto ping_init
-    )
-    
-    echo Setting root password to 123456...
-    database\\bin\\mysqladmin.exe --port=3310 -u root password 123456
-    
-    echo Shutting down temp database...
-    database\\bin\\mysqladmin.exe --port=3310 -u root -p123456 shutdown
-    timeout /t 2 /nobreak >nul
-    echo.
-) else (
-    echo [1/3] Portable database already initialized.
+if exist database\\data goto db_init_done
+echo [1/3] Initializing portable MySQL database...
+mkdir database\\data
+cd database
+call bin\\mysqld.exe --initialize-insecure --datadir=data --console
+echo.
+echo Starting MySQL temporarily for initialization...
+start "MySQL Temp" /min bin\\mysqld.exe --defaults-file=my.ini --datadir=data --port=3310 --bind-address=127.0.0.1
+cd ..
+
+echo Waiting for database to initialize...
+:ping_init
+database\\bin\\mysqladmin.exe --port=3310 -u root ping >nul 2>&1
+if errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto ping_init
 )
 
+echo Setting root password to 123456...
+database\\bin\\mysqladmin.exe --port=3310 -u root password 123456
+
+echo Shutting down temp database...
+database\\bin\\mysqladmin.exe --port=3310 -u root -p123456 shutdown
+timeout /t 2 /nobreak >nul
+echo.
+
+:db_init_done
+
 echo [2/3] Starting MySQL Database...
-start "MySQL Portable" /min database\\bin\\mysqld.exe --defaults-file=database\\my.ini --datadir=database\\data --port=3310 --bind-address=127.0.0.1
+cd database
+start "MySQL Portable" /min bin\\mysqld.exe --defaults-file=my.ini --datadir=data --port=3310 --bind-address=127.0.0.1
+cd ..
 
 echo.
 echo Waiting for database to start...
 :ping
 database\\bin\\mysqladmin.exe --port=3310 -u root -p123456 ping >nul 2>&1
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     timeout /t 1 /nobreak >nul
     goto ping
 )
@@ -1117,11 +1132,11 @@ if [ ! -d "database/data" ]; then
     mkdir -p database/data
     cd database
     ./bin/mysqld --initialize-insecure --datadir=data
-    cd ..
     
     echo "Starting MySQL temporarily for initialization..."
-    ./database/bin/mysqld --defaults-file=database/my.cnf --datadir=database/data --port=3310 --bind-address=127.0.0.1 &
+    ./bin/mysqld --defaults-file=my.cnf --datadir=data --port=3310 --bind-address=127.0.0.1 &
     TEMP_PID=$!
+    cd ..
     
     echo "Waiting for database to initialize..."
     while ! ./database/bin/mysqladmin --port=3310 -u root ping &>/dev/null; do
@@ -1140,8 +1155,10 @@ else
 fi
 
 echo "[2/3] Starting MySQL Database..."
-./database/bin/mysqld --defaults-file=database/my.cnf --datadir=database/data --port=3310 --bind-address=127.0.0.1 &
+cd database
+./bin/mysqld --defaults-file=my.cnf --datadir=data --port=3310 --bind-address=127.0.0.1 &
 DB_PID=$!
+cd ..
 
 echo
 echo "Waiting for database to start..."
