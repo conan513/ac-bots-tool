@@ -508,6 +508,33 @@ app.post('/api/setup-portable-deps', async (req, res) => {
     }
 
     // Step 4: Run vcpkg install for libraries
+    if (process.platform === 'linux') {
+      logToConsole('Checking for required system build tools (autotools)...', 'system');
+      const missingTools = [];
+      
+      const checkTool = (cmd) => new Promise((resolve) => {
+        exec(`command -v ${cmd}`, (err) => {
+          if (err) missingTools.push(cmd);
+          resolve();
+        });
+      });
+      
+      await Promise.all([
+        checkTool('autoconf'),
+        checkTool('automake'),
+        checkTool('libtoolize')
+      ]);
+
+      if (missingTools.length > 0) {
+        logToConsole(`ERROR: Missing required build tools: ${missingTools.join(', ')}`, 'error');
+        logToConsole('vcpkg requires these tools to compile libraries (like libbacktrace) on Linux.', 'info');
+        logToConsole('Please run the following command in your terminal to install them:', 'info');
+        logToConsole('  sudo apt update && sudo apt install -y autoconf autoconf-archive automake libtool', 'info');
+        throw new Error(`Missing system tools: ${missingTools.join(', ')}. Please run: sudo apt install autoconf autoconf-archive automake libtool`);
+      }
+      logToConsole('All required system build tools are present.', 'success');
+    }
+
     logToConsole('Installing libraries (OpenSSL, Boost sub-packages, MariaDB client) via vcpkg...', 'system');
     
     const vcpkgBinary = getPortableVcpkgPath();
