@@ -861,6 +861,357 @@ app.post('/api/build', async (req, res) => {
 });
 
 
+// 10. Package Portable Repack
+app.post('/api/repack', async (req, res) => {
+  if (buildState.status !== 'idle' && buildState.status !== 'success' && buildState.status !== 'failed') {
+    return res.status(400).json({ error: 'Another task is currently running.' });
+  }
+
+  const acPath = path.join(__dirname, 'azerothcore');
+  const acBinPath = path.join(acPath, 'bin');
+  const authserverName = process.platform === 'win32' ? 'authserver.exe' : 'authserver';
+  const worldserverName = process.platform === 'win32' ? 'worldserver.exe' : 'worldserver';
+
+  const authserverExists = fs.existsSync(path.join(acBinPath, authserverName));
+  const worldserverExists = fs.existsSync(path.join(acBinPath, worldserverName));
+
+  if (!authserverExists || !worldserverExists) {
+    return res.status(400).json({ error: 'Server binaries not built yet. Compile the project first!' });
+  }
+
+  buildState.status = 'downloading';
+  buildState.currentTask = 'Packaging Repack';
+  res.json({ success: true });
+
+  try {
+    const repackPath = path.join(__dirname, 'repack');
+    const repackServerPath = path.join(repackPath, 'server');
+    const repackSqlPath = path.join(repackPath, 'sql');
+    const repackDataPath = path.join(repackPath, 'data');
+    const repackDbPath = path.join(repackPath, 'database');
+
+    logToConsole('Starting repack packaging process...', 'system');
+
+    // 1. Create repack directories
+    fs.mkdirSync(repackServerPath, { recursive: true });
+    fs.mkdirSync(repackSqlPath, { recursive: true });
+    fs.mkdirSync(repackDataPath, { recursive: true });
+
+    // 2. Write data README
+    fs.writeFileSync(
+      path.join(repackDataPath, 'README.txt'),
+      'Place your dbc, maps, vmaps, and mmaps folders here to run the server.',
+      'utf8'
+    );
+
+    // 3. Copy compiled binaries and files
+    logToConsole('Copying compiled server binaries and configs...', 'system');
+    fs.cpSync(acBinPath, repackServerPath, { recursive: true });
+
+    // 4. Copy SQL updates folder
+    logToConsole('Copying database SQL files for automatic setup...', 'system');
+    const acSqlPath = path.join(acPath, 'sql');
+    if (fs.existsSync(acSqlPath)) {
+      fs.cpSync(acSqlPath, repackSqlPath, { recursive: true });
+    }
+
+    // 5. Duplicate .conf.dist files to .conf
+    function setupConfigs(dir) {
+      if (!fs.existsSync(dir)) return;
+      const items = fs.readdirSync(dir);
+      for (const item of items) {
+        const itemPath = path.join(dir, item);
+        const stat = fs.statSync(itemPath);
+        if (stat.isDirectory()) {
+          setupConfigs(itemPath);
+        } else if (item.endsWith('.conf.dist')) {
+          const confPath = itemPath.replace('.conf.dist', '.conf');
+          if (!fs.existsSync(confPath)) {
+            fs.copyFileSync(itemPath, confPath);
+            logToConsole(`Created config file: ${path.basename(confPath)}`, 'info');
+          }
+        }
+      }
+    }
+    setupConfigs(repackServerPath);
+
+    // 6. Update configuration properties
+    logToConsole('Pre-configuring server settings for portable database...', 'system');
+    const worldConf = findFileRecursive(repackServerPath, 'worldserver.conf');
+    const authConf = findFileRecursive(repackServerPath, 'authserver.conf');
+
+    function updateConfigProperty(filePath, property, newValue) {
+      if (!fs.existsSync(filePath)) return;
+      let content = fs.readFileSync(filePath, 'utf8');
+      const regex = new RegExp(`^\\s*${property}\\s*=\\s*.*$`, 'm');
+      if (regex.test(content)) {
+        content = content.replace(regex, `${property} = ${newValue}`);
+      } else {
+        content += `\n${property} = ${newValue}\n`;
+      }
+      fs.writeFileSync(filePath, content, 'utf8');
+    }
+
+    if (worldConf) {
+      updateConfigProperty(worldConf, 'DataDir', '"../data"');
+      updateConfigProperty(worldConf, 'SourceDirectory', '".."');
+      updateConfigProperty(worldConf, 'LoginDatabaseInfo', '"127.0.0.1;3310;root;123456;acore_auth"');
+      updateConfigProperty(worldConf, 'WorldDatabaseInfo', '"127.0.0.1;3310;root;123456;acore_world"');
+      updateConfigProperty(worldConf, 'CharacterDatabaseInfo', '"127.0.0.1;3310;root;123456;acore_characters"');
+      updateConfigProperty(worldConf, 'Updates.EnableDatabases', '1');
+      updateConfigProperty(worldConf, 'Updates.AutoSetup', '1');
+    }
+
+    if (authConf) {
+      updateConfigProperty(authConf, 'LoginDatabaseInfo', '"127.0.0.1;3310;root;123456;acore_auth"');
+    }
+
+    // 7. Download and extract portable MySQL 8.0 server
+    if (!fs.existsSync(repackDbPath)) {
+      const downloadsDir = path.join(__dirname, 'deps', 'downloads');
+      fs.mkdirSync(downloadsDir, { recursive: true });
+
+      let dbUrl = '';
+      let archiveName = '';
+
+      if (process.platform === 'win32') {
+        dbUrl = 'https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.36-winx64.zip';
+        archiveName = 'mysql-8.0.36-winx64.zip';
+      } else if (process.platform === 'linux') {
+        dbUrl = 'https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.36-linux-glibc2.28-x86_64.tar.xz';
+        archiveName = 'mysql-8.0.36-linux-glibc2.28-x86_64.tar.xz';
+      } else {
+        dbUrl = 'https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.36-macos14-arm64.tar.gz';
+        archiveName = 'mysql-8.0.36-macos.tar.gz';
+      }
+
+      const archivePath = path.join(downloadsDir, archiveName);
+
+      if (!fs.existsSync(archivePath)) {
+        logToConsole(`Downloading portable MySQL 8.0 database server (~140MB-230MB)...`, 'system');
+        await downloadFile(dbUrl, archivePath);
+        logToConsole('Database download completed.', 'success');
+      }
+
+      logToConsole('Extracting portable database server...', 'system');
+      await runCommand('tar', ['-xf', archivePath, '-C', repackPath]);
+
+      // Rename extracted folder
+      const folders = fs.readdirSync(repackPath);
+      const extractedFolder = folders.find(
+        f => f.startsWith('mysql-') && fs.statSync(path.join(repackPath, f)).isDirectory()
+      );
+      if (extractedFolder) {
+        fs.renameSync(path.join(repackPath, extractedFolder), repackDbPath);
+        logToConsole('Database extraction completed.', 'success');
+      } else {
+        throw new Error('Failed to locate extracted database server folder.');
+      }
+    } else {
+      logToConsole('Portable database already present. Skipping download.', 'success');
+    }
+
+    // 8. Create my.ini/my.cnf for database
+    const myConfigContent = `[mysqld]
+port=3310
+bind-address=127.0.0.1
+datadir=data
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+max_allowed_packet=64M
+default-authentication-plugin=mysql_native_password
+`;
+    if (process.platform === 'win32') {
+      fs.writeFileSync(path.join(repackDbPath, 'my.ini'), myConfigContent, 'utf8');
+    } else {
+      fs.writeFileSync(path.join(repackDbPath, 'my.cnf'), myConfigContent, 'utf8');
+    }
+
+    // 9. Write start scripts
+    logToConsole('Writing startup scripts for repack...', 'system');
+
+    const startBatContent = `@echo off
+title AzerothCore Portable Repack
+cd /d "%~dp0"
+
+echo ===================================================
+echo   AzerothCore Portable Repack Startup Script (MySQL 8)
+echo ===================================================
+echo.
+
+if not exist database\\data (
+    echo [1/3] Initializing portable MySQL database...
+    mkdir database\\data
+    cd database
+    call bin\\mysqld.exe --initialize-insecure --datadir=data --console
+    cd ..
+    
+    echo Starting MySQL temporarily for initialization...
+    start "MySQL Temp" /min database\\bin\\mysqld.exe --defaults-file=database\\my.ini --datadir=database\\data --port=3310 --bind-address=127.0.0.1
+    
+    echo Waiting for database to initialize...
+    :ping_init
+    database\\bin\\mysqladmin.exe --port=3310 -u root ping >nul 2>&1
+    if %errorlevel% neq 0 (
+        timeout /t 1 /nobreak >nul
+        goto ping_init
+    )
+    
+    echo Setting root password to 123456...
+    database\\bin\\mysqladmin.exe --port=3310 -u root password 123456
+    
+    echo Shutting down temp database...
+    database\\bin\\mysqladmin.exe --port=3310 -u root -p123456 shutdown
+    timeout /t 2 /nobreak >nul
+    echo.
+) else (
+    echo [1/3] Portable database already initialized.
+)
+
+echo [2/3] Starting MySQL Database...
+start "MySQL Portable" /min database\\bin\\mysqld.exe --defaults-file=database\\my.ini --datadir=database\\data --port=3310 --bind-address=127.0.0.1
+
+echo.
+echo Waiting for database to start...
+:ping
+database\\bin\\mysqladmin.exe --port=3310 -u root -p123456 ping >nul 2>&1
+if %errorlevel% neq 0 (
+    timeout /t 1 /nobreak >nul
+    goto ping
+)
+echo Database is running!
+echo.
+
+echo [3/3] Starting AzerothCore Servers...
+echo Starting AuthServer...
+start "AuthServer" server\\authserver.exe
+
+echo Starting WorldServer...
+cd server
+start "WorldServer" worldserver.exe
+cd ..
+
+echo.
+echo ===================================================
+echo   AzerothCore and Database are running!
+echo   Close this window to shut down the servers.
+echo ===================================================
+echo.
+pause
+
+echo Shutting down database...
+database\\bin\\mysqladmin.exe --port=3310 -u root -p123456 shutdown
+echo Done.
+`;
+
+    const startShContent = `#!/bin/bash
+cd "$(dirname "$0")"
+
+echo "==================================================="
+echo "  AzerothCore Portable Repack Startup Script (MySQL 8)"
+echo "==================================================="
+echo
+
+if [ ! -d "database/data" ]; then
+    echo "[1/3] Initializing portable MySQL database..."
+    mkdir -p database/data
+    cd database
+    ./bin/mysqld --initialize-insecure --datadir=data
+    cd ..
+    
+    echo "Starting MySQL temporarily for initialization..."
+    ./database/bin/mysqld --defaults-file=database/my.cnf --datadir=database/data --port=3310 --bind-address=127.0.0.1 &
+    TEMP_PID=$!
+    
+    echo "Waiting for database to initialize..."
+    while ! ./database/bin/mysqladmin --port=3310 -u root ping &>/dev/null; do
+        sleep 1
+    done
+    
+    echo "Setting root password to 123456..."
+    ./database/bin/mysqladmin --port=3310 -u root password 123456
+    
+    echo "Shutting down temp database..."
+    ./database/bin/mysqladmin --port=3310 -u root -p123456 shutdown
+    wait $TEMP_PID 2>/dev/null
+    echo
+else
+    echo "[1/3] Portable database already initialized."
+fi
+
+echo "[2/3] Starting MySQL Database..."
+./database/bin/mysqld --defaults-file=database/my.cnf --datadir=database/data --port=3310 --bind-address=127.0.0.1 &
+DB_PID=$!
+
+echo
+echo "Waiting for database to start..."
+while ! ./database/bin/mysqladmin --port=3310 -u root -p123456 ping &>/dev/null; do
+    sleep 1
+done
+echo "Database is running!"
+echo
+
+echo "[3/3] Starting AzerothCore Servers..."
+echo "Starting AuthServer..."
+./server/authserver &
+AUTH_PID=$!
+
+echo "Starting WorldServer..."
+cd server
+./worldserver &
+WORLD_PID=$!
+cd ..
+
+echo
+echo "==================================================="
+echo "  AzerothCore and Database are running!"
+echo "  Press Ctrl+C to shut down all processes."
+echo "==================================================="
+echo
+
+cleanup() {
+    echo
+    echo "Shutting down servers..."
+    kill $AUTH_PID $WORLD_PID 2>/dev/null
+    echo "Shutting down database..."
+    ./database/bin/mysqladmin --port=3310 -u root -p123456 shutdown
+    wait $DB_PID 2>/dev/null
+    echo "Shutdown complete."
+    exit 0
+}
+
+trap cleanup INT TERM
+
+wait $WORLD_PID 2>/dev/null
+`;
+
+    fs.writeFileSync(path.join(repackPath, 'start.bat'), startBatContent, 'utf8');
+    fs.writeFileSync(path.join(repackPath, 'start.sh'), startShContent, 'utf8');
+
+    // 10. Chmod scripts and binaries on Linux/Mac
+    if (process.platform !== 'win32') {
+      logToConsole('Setting file execution permissions (chmod)...', 'system');
+      await runCommand('chmod', ['+x', 'start.sh', 'server/authserver', 'server/worldserver'], { cwd: repackPath });
+      await runCommand('chmod', ['-R', '+x', 'database/bin'], { cwd: repackPath });
+    }
+
+    buildState.status = 'success';
+    buildState.currentTask = 'Repack Created Successfully!';
+    logToConsole('===================================================', 'success');
+    logToConsole('PORTABLE REPACK CREATED SUCCESSFULLY!', 'success');
+    logToConsole('Files are located in the "repack/" directory.', 'success');
+    logToConsole('To run, just execute start.bat (Windows) or start.sh (Linux).', 'success');
+    logToConsole('===================================================', 'success');
+    broadcastStatus();
+  } catch (err) {
+    buildState.status = 'failed';
+    buildState.currentTask = 'Repack Creation Failed';
+    logToConsole(`Repack creation error: ${err.message}`, 'error');
+    broadcastStatus();
+  }
+});
+
+
 // SSE Log Stream
 app.get('/api/logs', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');

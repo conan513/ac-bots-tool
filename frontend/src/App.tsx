@@ -191,6 +191,18 @@ export default function App() {
     }
   };
 
+  const triggerRepack = async () => {
+    if (!confirm('This will package the compiled binaries, configs, and download a portable database server (~70MB) into the standalone "repack/" folder. Proceed?')) {
+      return;
+    }
+    try {
+      await fetch('/api/repack', { method: 'POST' });
+      fetchState();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const triggerCancel = async () => {
     try {
       await fetch('/api/cancel', { method: 'POST' });
@@ -501,6 +513,18 @@ export default function App() {
                   <div className="step-desc">Compiles C++ code, integrates the mod-playerbots module, and creates executable binaries in the <code>bin/</code> folder.</div>
                   <button className="btn btn-primary" onClick={triggerBuild} disabled={isBusy}>
                     🚀 Start Compilation
+                  </button>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className={`step-card ${state.status === 'downloading' && state.currentTask === 'Packaging Repack' ? 'active' : ''}`}>
+                <div className="step-number">4</div>
+                <div className="step-content">
+                  <div className="step-title">Create Portable Repack</div>
+                  <div className="step-desc">Packages the compiled binaries, SQL files, startup scripts, and downloads a portable database server into a standalone <code>repack/</code> folder.</div>
+                  <button className="btn btn-purple" onClick={triggerRepack} disabled={isBusy}>
+                    📦 Create Repack
                   </button>
                 </div>
               </div>
