@@ -6,11 +6,16 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js --dev",
-    "build-frontend": "npm run build --prefix frontend"
+    "build-frontend": "npm run build --prefix frontend",
+    "electron": "electron main.js",
+    "electron:dev": "electron main.js --dev"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "open": "^8.4.2"
+  },
+  "devDependencies": {
+    "electron": "^42.4.1"
   }
 }

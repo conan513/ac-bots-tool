@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { spawn, exec } = require('child_process');
 const http = require('http');
 const open = require('open');
@@ -1026,23 +1027,174 @@ app.post('/api/repack', async (req, res) => {
       logToConsole('Portable database already present. Skipping download.', 'success');
     }
 
-    // 8. Create my.ini/my.cnf for database
+    // 8. Create performance-tuned my.ini/my.cnf for database
+    const totalRamBytes = os.totalmem();
+    const totalRamMB = Math.floor(totalRamBytes / 1024 / 1024);
+    // Conservative: 25% of RAM, capped between 256MB and 1536MB
+    // AzerothCore loads most world data into its own process memory, so MySQL
+    // doesn't need a huge buffer pool — we leave headroom for the OS and game server
+    const bufferPoolMB = Math.min(1536, Math.max(256, Math.floor(totalRamMB * 0.25)));
+    // 1 instance per 1GB of buffer pool (min 1, max 8)
+    const bufferPoolInstances = Math.min(8, Math.max(1, Math.floor(bufferPoolMB / 1024)));
+    // Log buffer: 1/8th of buffer pool, capped at 128MB
+    const logBufferMB = Math.min(128, Math.max(32, Math.floor(bufferPoolMB / 8)));
+    // Redo log: 25% of buffer pool, capped at 512MB
+    const innodbLogSizeMB = Math.min(512, Math.max(128, Math.floor(bufferPoolMB / 4)));
+    // CPU threads for I/O (capped at 8 to avoid over-threading)
+    const cpuCount = os.cpus().length;
+    const ioThreads = Math.min(8, Math.max(4, cpuCount));
+    // Purge threads: faster cleanup of old row versions (1-4, doesn't use extra RAM)
+    const purgeThreads = Math.min(4, Math.max(1, Math.floor(cpuCount / 2)));
+
+    logToConsole(`System RAM: ${totalRamMB}MB | Buffer Pool: ${bufferPoolMB}MB | CPUs: ${cpuCount}`, 'system');
+
+    // Platform-specific flush method
+    const flushMethod = process.platform === 'linux' ? 'innodb_flush_method=O_DIRECT' :
+                        process.platform === 'win32' ? 'innodb_flush_method=unbuffered' : '';
+
     const myConfigContent = `[mysqld]
+# ============================================================
+# Network & Auth
+# ============================================================
 port=3310
 bind-address=127.0.0.1
-datadir=data
+max_connections=50
+max_allowed_packet=128M
+default-authentication-plugin=mysql_native_password
+
+# ============================================================
+# Character Set
+# ============================================================
 character-set-server=utf8mb4
 collation-server=utf8mb4_unicode_ci
-max_allowed_packet=64M
-default-authentication-plugin=mysql_native_password
+
+# ============================================================
+# InnoDB — RAM-conservative, I/O-aggressive tuning
+# ============================================================
+# Buffer pool: 25% of system RAM (${bufferPoolMB}MB on this machine)
+# AzerothCore holds world data in its own process — MySQL only needs to
+# serve character/auth queries quickly, so a modest buffer pool is fine
+innodb_buffer_pool_size=${bufferPoolMB}M
+innodb_buffer_pool_instances=${bufferPoolInstances}
+
+# Redo log (larger = fewer checkpoint flushes = fewer I/O stalls)
+innodb_log_file_size=${innodbLogSizeMB}M
+innodb_log_buffer_size=${logBufferMB}M
+
+# Flush strategy: write to log buffer every second, not per-commit
+# Massive write speedup with minimal data-loss risk (OS crash safe)
+innodb_flush_log_at_trx_commit=2
+
+${flushMethod ? flushMethod + '\n' : ''}# --- I/O ---
+# Disable doublewrite buffer: saves ~50% of write I/O on every write
+# Safe for a local game server (only risk is power-off mid-write = rare)
+innodb_doublewrite=0
+
+# SSD: set to 2000+, HDD: set to 200-400
+innodb_io_capacity=2000
+innodb_io_capacity_max=4000
+
+# I/O threads: match physical CPU count for parallel read/write
+innodb_read_io_threads=${ioThreads}
+innodb_write_io_threads=${ioThreads}
+
+# --- Concurrency & Locking ---
+# READ-COMMITTED: less row-level locking than default REPEATABLE-READ
+# Safe for AzerothCore — no snapshot reads needed
+transaction_isolation=READ-COMMITTED
+
+# Let InnoDB self-tune concurrency
+innodb_thread_concurrency=0
+
+# Allow dirty page ratio to climb higher before forcing a flush
+# Reduces I/O spikes during heavy character-save periods
+innodb_max_dirty_pages_pct=90
+innodb_max_dirty_pages_pct_lwm=10
+
+# --- Change Buffering ---
+# Buffer secondary index changes in memory before writing to disk
+# Huge win for INSERT/UPDATE/DELETE heavy workloads (character saves)
+innodb_change_buffering=all
+
+# Adaptive hash index: MySQL auto-builds hash lookups for hot pages
+# Greatly speeds up repeated spell/creature template lookups
+innodb_adaptive_hash_index=ON
+
+# --- Statistics ---
+# Disable auto-recalculation of table stats during gameplay
+# Prevents random query plan changes / stalls mid-session
+innodb_stats_auto_recalc=OFF
+innodb_stats_persistent=ON
+
+# --- Cleanup ---
+# More purge threads = faster cleanup of old row versions (MVCC)
+# Keeps row storage lean without extra RAM
+innodb_purge_threads=${purgeThreads}
+
+# Reduce LRU page scan depth — saves CPU when buffer pool pressure is low
+innodb_lru_scan_depth=256
+
+# Each table in its own .ibd file
+innodb_file_per_table=1
+
+# ============================================================
+# Disable Unnecessary Features
+# ============================================================
+# Binary logging not needed for local game server — removes per-write sync overhead
+skip-log-bin
+
+# Performance schema consumes ~400MB RAM — not useful for a game server
+performance_schema=OFF
+
+# Skip DNS reverse lookups on client connections
+skip-name-resolve
+
+# ============================================================
+# Table & Schema Cache (CPU-cheap, saves repeated disk lookups)
+# ============================================================
+table_open_cache=4096
+table_definition_cache=2048
+open_files_limit=65535
+
+# ============================================================
+# In-Memory Temp Tables (avoids disk-based temp table spills)
+# ============================================================
+tmp_table_size=128M
+max_heap_table_size=128M
+
+# ============================================================
+# Per-Connection Buffers (kept moderate — multiplied by max_connections)
+# ============================================================
+sort_buffer_size=2M
+join_buffer_size=2M
+read_buffer_size=1M
+read_rnd_buffer_size=4M
+
+# Faster MyISAM system table access (mysql.* uses MyISAM)
+key_buffer_size=32M
+
+# Thread cache: reuse threads instead of spawning new ones
+thread_cache_size=16
+
+# ============================================================
+# Bulk Import Optimization (speeds up first-run DB setup)
+# ============================================================
+bulk_insert_buffer_size=64M
+
+# ============================================================
+# Data Directory
+# ============================================================
+datadir=data
 `;
     if (process.platform === 'win32') {
       fs.writeFileSync(path.join(repackDbPath, 'my.ini'), myConfigContent, 'utf8');
     } else {
       fs.writeFileSync(path.join(repackDbPath, 'my.cnf'), myConfigContent, 'utf8');
     }
+    logToConsole(`Performance-tuned MySQL config written (Buffer Pool: ${bufferPoolMB}MB, Doublewrite OFF, Binary Log OFF).`, 'success');
 
     // 9. Write start scripts
+
     logToConsole('Writing startup scripts for repack...', 'system');
     const startBatContent = `@echo off
 title AzerothCore Portable Repack
@@ -1253,8 +1405,24 @@ server.listen(PORT, async () => {
   console.log(`Server is running at http://localhost:${PORT}`);
   await checkDependencies();
   
-  // Auto open browser in non-dev mode
-  if (!isDev) {
+  // Auto open browser in non-dev mode (but NOT when running inside Electron)
+  if (!isDev && !process.versions.electron) {
     open(`http://localhost:${PORT}`);
   }
 });
+
+// Clean exit handler (terminates active child processes on close)
+function cleanupAndExit() {
+  if (activeProcess) {
+    console.log('Killing active build process before exit...');
+    try {
+      activeProcess.kill('SIGINT');
+    } catch (e) {
+      // Ignore
+    }
+  }
+  process.exit(0);
+}
+
+process.on('SIGINT', cleanupAndExit);
+process.on('SIGTERM', cleanupAndExit);
