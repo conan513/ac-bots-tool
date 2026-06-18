@@ -525,12 +525,43 @@ app.post('/api/setup-portable-deps', async (req, res) => {
         checkTool('libtoolize')
       ]);
 
+      try {
+        const aclocalDir = '/usr/share/aclocal';
+        const hasArchive = fs.existsSync(aclocalDir) && 
+                           fs.readdirSync(aclocalDir).some(file => file.startsWith('ax_'));
+        if (!hasArchive) {
+          missingTools.push('autoconf-archive');
+        }
+      } catch (e) {
+        missingTools.push('autoconf-archive');
+      }
+
       if (missingTools.length > 0) {
         logToConsole(`ERROR: Missing required build tools: ${missingTools.join(', ')}`, 'error');
         logToConsole('vcpkg requires these tools to compile libraries (like libbacktrace) on Linux.', 'info');
-        logToConsole('Please run the following command in your terminal to install them:', 'info');
-        logToConsole('  sudo apt update && sudo apt install -y autoconf autoconf-archive automake libtool', 'info');
-        throw new Error(`Missing system tools: ${missingTools.join(', ')}. Please run: sudo apt install autoconf autoconf-archive automake libtool`);
+        logToConsole('Please run the following commands in your Linux terminal to install them:', 'info');
+        
+        const isRedHat = fs.existsSync('/etc/redhat-release') || 
+                         fs.existsSync('/etc/rocky-release') || 
+                         fs.existsSync('/etc/almalinux-release') ||
+                         (fs.existsSync('/etc/os-release') && fs.readFileSync('/etc/os-release', 'utf8').includes('rhel'));
+                         
+        const isArch = fs.existsSync('/etc/arch-release') ||
+                       (fs.existsSync('/etc/os-release') && fs.readFileSync('/etc/os-release', 'utf8').includes('arch'));
+                         
+        if (isArch) {
+          logToConsole('  For Arch Linux:', 'info');
+          logToConsole('    sudo pacman -S autoconf autoconf-archive automake libtool', 'info');
+        } else if (isRedHat) {
+          logToConsole('  For Rocky Linux / AlmaLinux / CentOS Stream / RHEL:', 'info');
+          logToConsole('    sudo dnf config-manager --set-enabled crb || sudo dnf config-manager --set-enabled powertools', 'info');
+          logToConsole('    sudo dnf install -y epel-release', 'info');
+          logToConsole('    sudo dnf install -y autoconf automake autoconf-archive libtool', 'info');
+        } else {
+          logToConsole('  For Debian / Ubuntu:', 'info');
+          logToConsole('    sudo apt update && sudo apt install -y autoconf autoconf-archive automake libtool', 'info');
+        }
+        throw new Error(`Missing system tools: ${missingTools.join(', ')}. Please install them.`);
       }
       logToConsole('All required system build tools are present.', 'success');
     }
