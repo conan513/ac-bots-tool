@@ -142,7 +142,7 @@ export default function App() {
 
   const triggerClone = async () => {
     if (!state?.dependencies.git.installed) {
-      alert("Hiba: A Git nincs telepítve a gépeden! Kérlek telepítsd a Git-et, és frissítsd az állapotot.");
+      alert("Error: Git is not installed on your system! Please install Git and refresh the status.");
       return;
     }
     try {
@@ -155,11 +155,11 @@ export default function App() {
 
   const triggerConfigure = async () => {
     if (!state?.dependencies.cmake.installed) {
-      alert("Hiba: A CMake nincs telepítve! Kérlek először kattints a 'Hordozható függőségek beszerzése' gombra a bal oldali panelen.");
+      alert("Error: CMake is not installed! Please click 'Get Portable Dependencies' on the left panel first.");
       return;
     }
     if (state.dependencies.compiler.version.includes('2026') && (state.dependencies.cmake.version.includes('version 3.') || !state.dependencies.cmake.path.includes('4.3.3'))) {
-      alert("Hiba: A Visual Studio 2026-hoz a CMake v4.3.3 szükséges. Kérlek kattints a bal oldali panelen a 'Hordozható függőségek beszerzése' gombra a CMake frissítéséhez!");
+      alert("Error: Visual Studio 2026 requires CMake v4.3.3. Please click 'Get Portable Dependencies' on the left panel to update CMake!");
       return;
     }
     try {
@@ -176,7 +176,7 @@ export default function App() {
 
   const triggerBuild = async () => {
     if (!state?.dependencies.compiler.installed) {
-      alert("Hiba: Nem található C++ fordító! Kérlek először telepítsd a fordítót a bal oldali panelen található 'Fordító telepítése' gomb segítségével.");
+      alert("Error: C++ Compiler not found! Please install the compiler first using the 'Install Compiler' button on the left panel.");
       return;
     }
     try {
@@ -274,7 +274,7 @@ export default function App() {
           <div className="logo-icon">AC</div>
           <div className="logo-text">
             <h1>AzerothCore Builder</h1>
-            <p>Hordozható fordító és Playerbots modul integrator</p>
+            <p>Portable compiler and Playerbots module integrator</p>
           </div>
         </div>
         
@@ -284,7 +284,7 @@ export default function App() {
           </div>
           <div className="status-badge">
             <span className={`pulse-indicator ${isBusy ? 'active' : state.status === 'success' ? 'success' : state.status === 'failed' ? 'error' : 'idle'}`}></span>
-            Mód: <strong>{state.status.toUpperCase().replace('_', ' ')}</strong>
+            Status: <strong>{state.status.toUpperCase().replace('_', ' ')}</strong>
           </div>
         </div>
       </header>
@@ -297,9 +297,9 @@ export default function App() {
           {/* Dependencies Card */}
           <div className="card">
             <div className="card-title">
-              <span>🛠️ Rendszerfüggőségek</span>
+              <span>🛠️ System Dependencies</span>
               <button className="btn btn-secondary" style={{ width: 'auto', padding: '0.25rem 0.75rem', fontSize: '0.75rem' }} onClick={triggerCheckDeps} disabled={isBusy}>
-                🔄 Ellenőrzés
+                🔄 Check
               </button>
             </div>
             
@@ -307,7 +307,7 @@ export default function App() {
               <div className={`dep-item ${state.dependencies.git.installed ? 'installed' : 'missing'}`}>
                 <div className="dep-info">
                   <span className="dep-name">Git</span>
-                  <span className="dep-version">{state.dependencies.git.installed ? state.dependencies.git.version : 'Nem található'}</span>
+                  <span className="dep-version">{state.dependencies.git.installed ? state.dependencies.git.version : 'Not found'}</span>
                 </div>
                 <span className={`dep-status-icon ${state.dependencies.git.installed ? 'success' : 'error'}`}>
                   {state.dependencies.git.installed ? '✔️' : '❌'}
@@ -317,7 +317,7 @@ export default function App() {
               <div className={`dep-item ${state.dependencies.compiler.installed ? 'installed' : 'missing'}`}>
                 <div className="dep-info">
                   <span className="dep-name">C++ Compiler</span>
-                  <span className="dep-version">{state.dependencies.compiler.installed ? `${state.dependencies.compiler.type} (${state.dependencies.compiler.version})` : 'Nem található'}</span>
+                  <span className="dep-version">{state.dependencies.compiler.installed ? `${state.dependencies.compiler.type} (${state.dependencies.compiler.version})` : 'Not found'}</span>
                 </div>
                 <span className={`dep-status-icon ${state.dependencies.compiler.installed ? 'success' : 'error'}`}>
                   {state.dependencies.compiler.installed ? '✔️' : '❌'}
@@ -326,8 +326,8 @@ export default function App() {
 
               <div className={`dep-item ${state.dependencies.cmake.installed ? 'installed' : 'missing'}`}>
                 <div className="dep-info">
-                  <span className="dep-name">CMake {state.dependencies.cmake.portable && '(Hordozható)'}</span>
-                  <span className="dep-version">{state.dependencies.cmake.installed ? state.dependencies.cmake.version : 'Nem található'}</span>
+                  <span className="dep-name">CMake {state.dependencies.cmake.portable && '(Portable)'}</span>
+                  <span className="dep-version">{state.dependencies.cmake.installed ? state.dependencies.cmake.version : 'Not found'}</span>
                 </div>
                 <span className={`dep-status-icon ${state.dependencies.cmake.installed ? 'success' : 'error'}`}>
                   {state.dependencies.cmake.installed ? '✔️' : '❌'}
@@ -337,7 +337,7 @@ export default function App() {
               <div className={`dep-item ${state.dependencies.boost.installed ? 'installed' : 'missing'}`}>
                 <div className="dep-info">
                   <span className="dep-name">Boost C++ Libraries {state.dependencies.boost.portable && '(vcpkg)'}</span>
-                  <span className="dep-version">{state.dependencies.boost.installed ? 'Telepítve' : 'Nem található'}</span>
+                  <span className="dep-version">{state.dependencies.boost.installed ? 'Installed' : 'Not found'}</span>
                 </div>
                 <span className={`dep-status-icon ${state.dependencies.boost.installed ? 'success' : 'error'}`}>
                   {state.dependencies.boost.installed ? '✔️' : '❌'}
@@ -347,7 +347,7 @@ export default function App() {
               <div className={`dep-item ${state.dependencies.openssl.installed ? 'installed' : 'missing'}`}>
                 <div className="dep-info">
                   <span className="dep-name">OpenSSL {state.dependencies.openssl.portable && '(vcpkg)'}</span>
-                  <span className="dep-version">{state.dependencies.openssl.installed ? 'Telepítve' : 'Nem található'}</span>
+                  <span className="dep-version">{state.dependencies.openssl.installed ? 'Installed' : 'Not found'}</span>
                 </div>
                 <span className={`dep-status-icon ${state.dependencies.openssl.installed ? 'success' : 'error'}`}>
                   {state.dependencies.openssl.installed ? '✔️' : '❌'}
@@ -357,7 +357,7 @@ export default function App() {
               <div className={`dep-item ${state.dependencies.mariadb.installed ? 'installed' : 'missing'}`}>
                 <div className="dep-info">
                   <span className="dep-name">MariaDB Libraries {state.dependencies.mariadb.portable && '(vcpkg)'}</span>
-                  <span className="dep-version">{state.dependencies.mariadb.installed ? 'Telepítve' : 'Nem található'}</span>
+                  <span className="dep-version">{state.dependencies.mariadb.installed ? 'Installed' : 'Not found'}</span>
                 </div>
                 <span className={`dep-status-icon ${state.dependencies.mariadb.installed ? 'success' : 'error'}`}>
                   {state.dependencies.mariadb.installed ? '✔️' : '❌'}
@@ -368,21 +368,21 @@ export default function App() {
             {/* Compiler Help Trigger */}
             {!state.dependencies.compiler.installed && (
               <div className="installer-help-card">
-                <h4>⚠️ Hiányzó C++ Fordító!</h4>
-                <p>A C++ fordító szükséges a forráskód lefordításához.</p>
+                <h4>⚠️ Missing C++ Compiler!</h4>
+                <p>A C++ compiler is required to compile the source code.</p>
                 {state.os === 'win32' && (
                   <button className="btn btn-primary" onClick={triggerInstallCompiler} disabled={isBusy}>
-                    📥 Fordító telepítése (Winget)
+                    📥 Install Compiler (Winget)
                   </button>
                 )}
                 {state.os === 'darwin' && (
                   <button className="btn btn-primary" onClick={triggerInstallCompiler} disabled={isBusy}>
-                    📥 Fordító telepítése (xcode-select)
+                    📥 Install Compiler (xcode-select)
                   </button>
                 )}
                 {state.os === 'linux' && (
                   <div>
-                    <p>Futtasd az alábbi parancsot a terminálban:</p>
+                    <p>Run the following command in your terminal:</p>
                     <div className="code-block">sudo apt install -y build-essential gcc g++</div>
                   </div>
                 )}
@@ -392,10 +392,10 @@ export default function App() {
             {/* Portable Setup Trigger */}
             {state.dependencies.compiler.installed && (!state.dependencies.cmake.installed || !state.dependencies.boost.installed || !state.dependencies.openssl.installed || !state.dependencies.mariadb.installed) && (
               <div className="installer-help-card" style={{ backgroundColor: 'rgba(79, 172, 254, 0.05)', borderColor: 'rgba(79, 172, 254, 0.2)' }}>
-                <h4 style={{ color: 'var(--color-primary)' }}>📦 Hordozható függőségek telepítése</h4>
-                <p>Letölti a CMake-et, valamint a Boost, OpenSSL és MySQL/MariaDB függőségeket helyben a <code>deps/</code> mappába.</p>
+                <h4 style={{ color: 'var(--color-primary)' }}>📦 Install Portable Dependencies</h4>
+                <p>Downloads CMake, along with Boost, OpenSSL, and MySQL/MariaDB dependencies locally into the <code>deps/</code> folder.</p>
                 <button className="btn btn-purple" onClick={triggerSetupPortableDeps} disabled={isBusy}>
-                  📥 Hordozható függőségek beszerzése
+                  📥 Get Portable Dependencies
                 </button>
               </div>
             )}
@@ -403,22 +403,22 @@ export default function App() {
 
           {/* Configuration Card */}
           <div className="card">
-            <div className="card-title">⚙️ Konfigurációs Beállítások</div>
+            <div className="card-title">⚙️ Configuration Settings</div>
             
             <div className="form-group">
-              <label>Build Típus</label>
+              <label>Build Type</label>
               <select className="form-select" value={buildType} onChange={(e) => setBuildType(e.target.value as 'Release' | 'Debug')} disabled={isBusy}>
-                <option value="Release">Release (Ajánlott játékhoz / gyors futáshoz)</option>
-                <option value="Debug">Debug (Fejlesztéshez, crash diagnosztikához)</option>
+                <option value="Release">Release (Recommended for play / fast execution)</option>
+                <option value="Debug">Debug (For development / crash diagnostics)</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label>Párhuzamos szálak száma (CPU Cores)</label>
+              <label>Number of Parallel Cores (CPU Cores)</label>
               <input 
                 type="number" 
                 className="form-input" 
-                placeholder="Összes mag használata" 
+                placeholder="Use all cores" 
                 value={parallelCores} 
                 onChange={(e) => setParallelCores(e.target.value)} 
                 disabled={isBusy}
@@ -427,11 +427,11 @@ export default function App() {
             </div>
 
             <div className="form-group">
-              <label>Egyedi CMake argumentumok</label>
+              <label>Custom CMake Arguments</label>
               <input 
                 type="text" 
                 className="form-input" 
-                placeholder="Pl: -DWITH_WARNINGS=0" 
+                placeholder="E.g., -DWITH_WARNINGS=0" 
                 value={customArgs} 
                 onChange={(e) => setCustomArgs(e.target.value)} 
                 disabled={isBusy}
@@ -447,10 +447,10 @@ export default function App() {
           {/* Progress / Step Card */}
           <div className="card">
             <div className="card-title">
-              <span>🚀 AzerothCore Összeállítási Lépések</span>
+              <span>🚀 AzerothCore Build Steps</span>
               {isBusy && (
                 <button className="btn btn-danger" style={{ width: 'auto', padding: '0.25rem 1rem', fontSize: '0.85rem' }} onClick={triggerCancel}>
-                  ⏹️ Leállítás
+                  ⏹️ Stop
                 </button>
               )}
             </div>
@@ -459,8 +459,8 @@ export default function App() {
             {isBusy && (
               <div style={{ marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-                  <span>Feladat: <strong>{state.currentTask}</strong></span>
-                  <span>Folyamatban...</span>
+                  <span>Task: <strong>{state.currentTask}</strong></span>
+                  <span>In progress...</span>
                 </div>
                 <div className="progress-bar-container">
                   <div className="progress-bar pulsing" style={{ width: getProgressBarWidth() }}></div>
@@ -473,10 +473,10 @@ export default function App() {
               <div className={`step-card ${state.status === 'cloning' ? 'active' : ''}`}>
                 <div className="step-number">1</div>
                 <div className="step-content">
-                  <div className="step-title">Forráskód Letöltése</div>
-                  <div className="step-desc">Le klónozza az AzerothCore-wotlk fő ágat és a mod-playerbots kiegészítőt.</div>
+                  <div className="step-title">Download Source Code</div>
+                  <div className="step-desc">Clones the AzerothCore-wotlk main branch and the mod-playerbots module.</div>
                   <button className="btn btn-secondary" onClick={triggerClone} disabled={isBusy}>
-                    📥 Klónozás és frissítés
+                    📥 Clone and Update
                   </button>
                 </div>
               </div>
@@ -485,10 +485,10 @@ export default function App() {
               <div className={`step-card ${state.status === 'configuring' ? 'active' : ''}`}>
                 <div className="step-number">2</div>
                 <div className="step-content">
-                  <div className="step-title">CMake Konfiguráció</div>
-                  <div className="step-desc">Generálja a build fájlokat és beállítja a hordozható függőségek útvonalait.</div>
+                  <div className="step-title">CMake Configuration</div>
+                  <div className="step-desc">Generates build files and configures paths to portable dependencies.</div>
                   <button className="btn btn-secondary" onClick={triggerConfigure} disabled={isBusy}>
-                    ⚙️ CMake Generálás
+                    ⚙️ CMake Generate
                   </button>
                 </div>
               </div>
@@ -497,10 +497,10 @@ export default function App() {
               <div className={`step-card ${state.status === 'building' ? 'active' : ''}`}>
                 <div className="step-number">3</div>
                 <div className="step-content">
-                  <div className="step-title">Kompilálás és Telepítés</div>
-                  <div className="step-desc">Lefordítja a C++ kódot, beépíti a mod-playerbots modult, és létrehozza a futtatható binárisokat a <code>bin/</code> mappában.</div>
+                  <div className="step-title">Compile and Install</div>
+                  <div className="step-desc">Compiles C++ code, integrates the mod-playerbots module, and creates executable binaries in the <code>bin/</code> folder.</div>
                   <button className="btn btn-primary" onClick={triggerBuild} disabled={isBusy}>
-                    🚀 Fordítás indítása
+                    🚀 Start Compilation
                   </button>
                 </div>
               </div>
@@ -514,13 +514,13 @@ export default function App() {
                 <span className="terminal-dot red"></span>
                 <span className="terminal-dot yellow"></span>
                 <span className="terminal-dot green"></span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '0.5rem', fontFamily: 'var(--font-sans)' }}>Konzol Napló</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '0.5rem', fontFamily: 'var(--font-sans)' }}>Console Log</span>
               </div>
 
               <div className="terminal-actions">
                 <input 
                   type="text" 
-                  placeholder="Keresés..." 
+                  placeholder="Search..." 
                   className="terminal-search"
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
@@ -532,23 +532,23 @@ export default function App() {
                   onChange={(e) => setLogTypeFilter(e.target.value as any)}
                   style={{ paddingRight: '1rem' }}
                 >
-                  <option value="all">Minden log</option>
-                  <option value="stdout">Standard kimenet</option>
-                  <option value="stderr">Hibacsatorna</option>
-                  <option value="system">Rendszerüzenetek</option>
+                  <option value="all">All logs</option>
+                  <option value="stdout">Standard output</option>
+                  <option value="stderr">Standard error</option>
+                  <option value="system">System messages</option>
                 </select>
 
-                <button className="terminal-action-btn" onClick={copyLogs} title="Összes másolása">
-                  📋 Másolás
+                <button className="terminal-action-btn" onClick={copyLogs} title="Copy all">
+                  📋 Copy
                 </button>
-                <button className="terminal-action-btn" onClick={clearLogs} title="Konzol ürítése">
-                  🗑️ Törlés
+                <button className="terminal-action-btn" onClick={clearLogs} title="Clear console">
+                  🗑️ Clear
                 </button>
                 <button 
                   className="terminal-action-btn" 
                   onClick={() => setAutoScroll(!autoScroll)}
                   style={{ color: autoScroll ? 'var(--color-primary)' : 'var(--text-muted)' }}
-                  title="Automatikus görgetés ki/be"
+                  title="Toggle automatic scrolling"
                 >
                   ⬇️ AutoScroll
                 </button>
@@ -557,7 +557,7 @@ export default function App() {
 
             <div className="terminal-console">
               {filteredLogs.length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem' }}>A konzol napló üres. Indíts el egy műveletet a részletekért.</div>
+                <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem' }}>The console log is empty. Start an action to see details.</div>
               ) : (
                 filteredLogs.map((log, index) => (
                   <div key={index} className={getLogClass(log.type)}>

@@ -1,35 +1,35 @@
 # AzerothCore & mod-playerbots Build Helper Dashboard
 
-Egy rendkívül egyszerűen használható, de dizájnos web-alapú kezelőfelület (Dashboard), ami segít letölteni, konfigurálni és lefordítani az AzerothCore szervert a `mod-playerbots` modullal integrálva Windows, Linux és macOS rendszereken.
+An extremely easy-to-use, styled web-based dashboard designed to help you download, configure, and compile the AzerothCore server integrated with the `mod-playerbots` module on Windows, Linux, and macOS.
 
-A függőségeket teljesen **portable (hordozható)** módon tudja letölteni és konfigurálni, így nem szennyezi be a rendszeredet globális változókkal vagy telepítésekkel.
+It downloads and configures dependencies in a completely **portable** manner, ensuring your system is not cluttered with global variables or installations.
 
-## Hogyan működik?
+## How does it work?
 
-1. **Rendszer-szintű fordító:** A tool segít telepíteni a C++ fordítóprogramot (Windows-on a Visual Studio Build Toolst `winget` segítségével, macOS-en az Xcode-ot `xcode-select`-tel).
-2. **Hordozható függőségek (CMake, Boost, OpenSSL, MariaDB):** Egy kattintással letölti a legfrissebb CMake-et a `deps/` mappába, majd a `vcpkg` segítségével lokálisan fordítja le a szükséges Boost és OpenSSL könyvtárakat.
-3. **Automatizált klónozás és buildelés:**
-   - Letölti az azerothcore-wotlk repository-t.
-   - Letölti a mod-playerbots modult a `modules` mappába.
-   - Lefuttatja a CMake konfigurációt a helyi függőségekre mutatva.
-   - Elindítja a párhuzamos fordítást (minden processzormagot kihasználva) a végleges szerver binárisok elkészítéséhez.
-4. **Valós idejű logok:** A böngészőből követheted a teljes fordítási folyamatot színkódolt, szűrhető konzolon keresztül.
-
----
-
-## Indítás lépései
-
-### 1. Letöltés és futtatás
-Nyisd meg a projekt gyökérkönyvtárát, és indítsd el a rendszerednek megfelelő fájlt:
-- **Windows:** Dupla kattintás a `start.bat` fájlra.
-- **Linux / macOS:** Futtasd a `bash start.sh` parancsot a terminálban.
-
-A parancsfájl automatikusan telepíti a háttér és felület függőségeit az első indításkor, lefordítja a kezelőfelületet, majd elindítja a helyi szervert és megnyitja a böngészőt a `http://localhost:3000` címen.
+1. **System-level compiler:** The tool helps install the C++ compiler (Visual Studio Build Tools via `winget` on Windows, Xcode command line tools via `xcode-select` on macOS).
+2. **Portable dependencies (CMake, Boost, OpenSSL, MariaDB):** With one click, it downloads the latest CMake to the `deps/` folder, then uses `vcpkg` to compile the required Boost and OpenSSL libraries locally.
+3. **Automated cloning and building:**
+   - Clones the azerothcore-wotlk repository.
+   - Clones the mod-playerbots module into the `modules` folder.
+   - Runs the CMake configuration pointing to the local dependencies.
+   - Launches parallel compilation (utilizing all CPU cores) to produce the final server binaries.
+4. **Real-time logs:** You can monitor the entire compilation process from your browser via a color-coded, filterable console.
 
 ---
 
-## Technikai részletek
+## Launch Steps
 
-- **Kezelőfelület (Frontend):** React, Vite, TypeScript és egyedi Vanilla CSS (üveg/neon sötét dizájn, teljesen reszponzív).
-- **Kiszolgáló (Backend):** Node.js + Express, Server-Sent Events (SSE) a logok streamelésére.
-- **Függőségek:** A letöltött hordozható eszközök a `deps/` mappába kerülnek. A lefordított szerver a `azerothcore/bin/` mappában fog elkészülni.
+### 1. Download and run
+Open the root directory of the project and run the file corresponding to your operating system:
+- **Windows:** Double-click the `start.bat` file.
+- **Linux / macOS:** Run the `bash start.sh` command in your terminal.
+
+The startup script automatically installs backend and frontend dependencies on the first run, builds the interface, starts the local server, and opens your browser at `http://localhost:3000`.
+
+---
+
+## Technical Details
+
+- **Frontend:** React, Vite, TypeScript, and custom Vanilla CSS (glassmorphism/neon dark design, fully responsive).
+- **Backend:** Node.js + Express, Server-Sent Events (SSE) for log streaming.
+- **Dependencies:** Downloaded portable tools are stored in the `deps/` folder. The compiled server binaries will be created in the `azerothcore/bin/` folder.

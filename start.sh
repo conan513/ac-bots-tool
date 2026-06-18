@@ -8,41 +8,37 @@ echo
 
 # Check for Node.js
 if ! command -v node &> /dev/null; then
-    echo "HIBA: A Node.js nincs telepítve! Kérlek telepítsd a nodejs.org-ról."
+    echo "ERROR: Node.js is not installed! Please install it from nodejs.org."
     exit 1
 fi
 
 # Install root dependencies
 if [ ! -d "node_modules" ]; then
-    echo "[1/3] Rendszer függőségek telepítése..."
+    echo "[1/3] Installing system dependencies..."
     npm install
     echo
 else
-    echo "[1/3] Rendszer függőségek már telepítve vannak."
+    echo "[1/3] System dependencies are already installed."
 fi
 
 # Install frontend dependencies
 if [ ! -d "frontend/node_modules" ]; then
-    echo "[2/3] UI függőségek telepítése..."
+    echo "[2/3] Installing UI dependencies..."
     cd frontend
     npm install
     cd ..
     echo
 else
-    echo "[2/3] UI függőségek már telepítve vannak."
+    echo "[2/3] UI dependencies are already installed."
 fi
 
-# Build frontend
-if [ ! -d "frontend/dist" ]; then
-    echo "[3/3] UI forráskod fordítása..."
-    npm run build-frontend
-    echo
-else
-    echo "[3/3] UI már le van fordítva."
-fi
+# Always build frontend on startup
+echo "[3/3] Building UI source code..."
+npm run build-frontend
+echo
 
 echo
-echo "Indítás folyamatban..."
-echo "A böngésző megnyílik a http://localhost:3000 címen."
+echo "Launching..."
+echo "The browser will open at http://localhost:3000"
 echo
 npm start

@@ -10,43 +10,39 @@ echo.
 :: Check for Node.js
 where node >nul 2>nul
 if %errorlevel% neq 0 (
-    echo ERROR: A Node.js nincs telepitve! Kerlek telepisd a nodejs.org-rol.
+    echo ERROR: Node.js is not installed! Please install it from nodejs.org.
     pause
     exit /b
 )
 
 :: Install root dependencies if not present
 if not exist node_modules (
-    echo [1/3] Rendszer fuggosegek telepitse...
+    echo [1/3] Installing system dependencies...
     call npm install
     echo.
 ) else (
-    echo [1/3] Rendszer fuggosegek mar telepitve vannak.
+    echo [1/3] System dependencies are already installed.
 )
 
 :: Install frontend dependencies if not present
 if not exist frontend\node_modules (
-    echo [2/3] UI fuggosegek telepitse...
+    echo [2/3] Installing UI dependencies...
     cd frontend
     call npm install
     cd ..
     echo.
 ) else (
-    echo [2/3] UI fuggosegek mar telepitve vannak.
+    echo [2/3] UI dependencies are already installed.
 )
 
-:: Build frontend if dist doesn't exist
-if not exist frontend\dist (
-    echo [3/3] UI forraskod fordítása...
-    call npm run build-frontend
-    echo.
-) else (
-    echo [3/3] UI mar le van forditva.
-)
+:: Always build frontend on startup
+echo [3/3] Building UI source code...
+call npm run build-frontend
+echo.
 
 echo.
-echo Inditas folyamatban...
-echo A bongeszo megnyilik a http://localhost:3000 cimen.
+echo Launching...
+echo The browser will open at http://localhost:3000
 echo.
 call npm start
 pause

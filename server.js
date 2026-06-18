@@ -446,12 +446,12 @@ app.post('/api/setup-portable-deps', async (req, res) => {
       const cmakeVer = buildState.dependencies.cmake.version;
       if (cmakeVer && (cmakeVer.startsWith('cmake version 3') || cmakeVer.startsWith('3.'))) {
         needNewCMake = true;
-        logToConsole('Visual Studio 2026-ot detektáltam, de a helyi CMake verzió 3.x. Frissítés v4.3.3-ra...', 'warning');
+        logToConsole('Detected Visual Studio 2026, but the local CMake version is 3.x. Upgrading to v4.3.3...', 'warning');
         try {
           fs.rmSync(cmakeDestDir, { recursive: true, force: true });
           fs.mkdirSync(cmakeDestDir, { recursive: true });
         } catch (e) {
-          logToConsole(`Nem sikerült törölni a régi CMake mappát: ${e.message}`, 'error');
+          logToConsole(`Failed to delete old CMake folder: ${e.message}`, 'error');
         }
       }
     }
