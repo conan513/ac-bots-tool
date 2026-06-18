@@ -1,0 +1,16 @@
+{
+  "name": "ac-bots-build-helper",
+  "version": "1.0.0",
+  "description": "Portable Build Helper for AzerothCore and mod-playerbots",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js --dev",
+    "build-frontend": "npm run build --prefix frontend"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "open": "^8.4.2"
+  }
+}
